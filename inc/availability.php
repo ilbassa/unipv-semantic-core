@@ -239,7 +239,7 @@ add_filter( 'rest_pre_dispatch', function ( $result, $server, WP_REST_Request $r
 
 	$route = ltrim( $request->get_route(), '/' );
 	$ours  = false;
-	foreach ( [ 'comuni/v1', 'scuole/v1' ] as $ns ) {
+	foreach ( [ 'unipv/v1' ] as $ns ) {
 		if ( str_starts_with( $route, $ns ) ) {
 			$ours = true;
 			break;

@@ -44,7 +44,7 @@ define( 'DESIITSE_RL_GLOBAL_RPS',     (int) apply_filters( 'desiitse_rl_global_r
  * @return string[]
  */
 function desiitse_rl_protected_namespaces(): array {
-	return [ 'comuni/v1', 'scuole/v1' ];
+	return [ 'unipv/v1' ];
 }
 
 // ── Recupero IP del client ─────────────────────────────────────────────────────

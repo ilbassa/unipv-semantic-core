@@ -21,9 +21,12 @@ function desiitse_context(): array {
 		'cov'      => 'https://w3id.org/italia/onto/COV/',
 		'cpsv'     => 'https://w3id.org/italia/onto/CPSV/',
 		'cpev'     => 'https://w3id.org/italia/onto/CPEV/',
+		'her'      => 'https://w3id.org/italia/onto/HER/',
 		'poi'      => 'https://w3id.org/italia/onto/POI/',
 		'clv'      => 'https://w3id.org/italia/onto/CLV/',
 		'proj'     => 'https://w3id.org/italia/onto/Project/',
+		'ro'       => 'https://w3id.org/italia/onto/RO/',
+		'skos'     => 'http://www.w3.org/2004/02/skos/core#',
 		'sm'       => 'https://w3id.org/italia/onto/SM/',
 		'access'   => 'https://w3id.org/italia/onto/AccessCondition/',
 		'foaf'     => 'http://xmlns.com/foaf/0.1/',
@@ -225,6 +228,39 @@ function desiitse_primary_org_ref( string $profile = 'dci' ): array {
 	return $profile === 'dsi' ? desiitse_school_ref() : desiitse_comune_ref();
 }
 
+function desiitse_university_id(): string {
+	$ipa = desiitse_get_ipa_code();
+	return ( $ipa !== null && $ipa !== '' ) ? 'urn:x-italian-pa:' . $ipa : home_url( '/' );
+}
+
+function desiitse_university_ref(): array {
+	return [ '@id' => desiitse_university_id() ];
+}
+
+function desiitse_university_data(): array {
+	$data = [
+		'title'      => desiitse_clean_text( get_bloginfo( 'name' ) ),
+		'legalName'  => desiitse_clean_text( get_bloginfo( 'name' ) ),
+		'acronym'    => 'UNIPV',
+	];
+
+	$data = apply_filters( 'desiitse_unipv_university_data', $data );
+
+	$node = [
+		'@type'         => 'cov:PublicOrganization',
+		'@id'           => desiitse_university_id(),
+		'dct:title'     => desiitse_clean_text( $data['title'] ?? '' ),
+		'cov:legalName' => desiitse_clean_text( $data['legalName'] ?? ( $data['title'] ?? '' ) ),
+	];
+
+	$acronym = desiitse_clean_text( $data['acronym'] ?? '' );
+	if ( $acronym !== '' ) {
+		$node['cov:orgAcronym'] = $acronym;
+	}
+
+	return $node;
+}
+
 function desiitse_attach_primary_organization( array &$node, string $profile = 'dci' ): void {
 	desiitse_add_ref_property( $node, 'cov:hasOrganization', [ desiitse_primary_org_ref( $profile ) ] );
 }
@@ -342,6 +378,7 @@ function desiitse_minimal_related_node( int $post_id ): ?array {
 				'poi:POIofficialName' => $title,
 			];
 		case 'persona_pubblica':
+		case 'persona':
 			return [
 				'@type'     => 'cpv:Person',
 				'@id'       => desiitse_node_id( $post ),
@@ -353,7 +390,13 @@ function desiitse_minimal_related_node( int $post_id ): ?array {
 				'@id'           => desiitse_node_id( $post ),
 				'dct:title'     => $title,
 				'cov:legalName' => $title,
-				'cov:hasOrganization' => desiitse_school_ref(),
+				'cov:hasOrganization' => desiitse_university_ref(),
+			];
+		case 'evento':
+			return [
+				'@type'     => 'cpev:PublicEvent',
+				'@id'       => desiitse_node_id( $post ),
+				'dct:title' => $title,
 			];
 		case 'servizio':
 			return [
@@ -370,7 +413,19 @@ function desiitse_minimal_related_node( int $post_id ): ?array {
 			];
 		case 'progetto':
 			return [
-				'@type'     => 'proj:Project',
+				'@type'     => 'her:PublicResearchProject',
+				'@id'       => desiitse_node_id( $post ),
+				'dct:title' => $title,
+			];
+		case 'indirizzo-di-ricerca':
+			return [
+				'@type'     => 'skos:Concept',
+				'@id'       => desiitse_node_id( $post ),
+				'dct:title' => $title,
+			];
+		case 'pubblicazione':
+			return [
+				'@type'     => 'foaf:Document',
 				'@id'       => desiitse_node_id( $post ),
 				'dct:title' => $title,
 			];

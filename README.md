@@ -1,19 +1,28 @@
-# Plugin Wordpress per la pubblicazione semantica dei siti di Comuni e Scuole (WIP)
+# Semantic University UNIPV
 
-Il plugin permette di generare, a partire dai dati che sono presenti nei siti di Comuni e Scuole realizzati utilizzando i temi wordpress di Designers Italia:
+Fork del plugin "Semantic Italia" orientato ai custom post type UNIPV.
 
-* [Design Comuni Wordpress Theme](https://github.com/italia/design-comuni-wordpress-theme)
-* [Design Scuole Wordpress Theme](https://github.com/italia/design-scuole-wordpress-theme)
+Il plugin espone grafi JSON-LD pubblici sotto il namespace REST:
 
-un grafo JSON-LD che fa riferimento alle ontologie e vocabolari controllati pubblicati dal Catalogo [schema.gov.it](https://schema.gov.it)).
+- `/wp-json/unipv/v1/graph`
+- `/wp-json/unipv/v1/graph/persone`
+- `/wp-json/unipv/v1/graph/strutture`
+- `/wp-json/unipv/v1/graph/eventi`
+- `/wp-json/unipv/v1/graph/progetti`
+- `/wp-json/unipv/v1/graph/indirizzi-di-ricerca`
+- `/wp-json/unipv/v1/graph/pubblicazioni`
 
-Dopo l'installazione, all'indirizzo
-* `https://{base_url}/wp-json/comuni/v1/graph` o
-* `https://{base_url}/wp-json/scuole/v1/graph`
+Restano riusati dal plugin originale: cache a transient + option, invalidazione su salvataggio contenuti, rebuild asincrono via WP-Cron, rate limiting e toggle di disponibilita API.
 
-sarà disponibile il grafo in formato JSON-LD con tutto il contenuto informativo del sito.
+## Profilo dati iniziale
 
-## Installazione
+Il profilo privilegia modellazioni minime e difendibili sulle ontologie schema.gov.it:
 
-Il plugin è disponibile sul catalogo Wordpress come [Semantic Italia](https://wordpress.org/plugins/design-italia-semantic).
+- `persona` -> `cpv:Person`
+- `struttura` -> `cov:Organization`
+- `evento` -> `cpev:PublicEvent`
+- `progetto` -> `her:PublicResearchProject`
+- `indirizzo-di-ricerca` -> `skos:Concept` con proprieta Dublin Core, in attesa di una classe HER piu specifica verificata
+- `pubblicazione` -> `foaf:Document` con proprieta `dct:*`, in attesa di una modellazione HER/research output piu precisa
 
+La tabella tecnica dei campi letti e delle proprieta RDF e in [`docs/unipv-semantic-mapping.md`](docs/unipv-semantic-mapping.md).
