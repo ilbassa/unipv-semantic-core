@@ -4,7 +4,7 @@ Questa tabella descrive il primo profilo semantico implementato. I campi arrivan
 
 | CPT | Campi/meta letti | Classe RDF | Proprieta RDF |
 | --- | --- | --- | --- |
-| opzioni sito | `tipologia_sito`, `dipartimento`, `nome_struttura_sito`, `bloginfo(name)` | `cov:PublicOrganization`, `cov:Organization`, `foaf:Document` | `dct:title`, `cov:legalName`, `cov:hasOrganization`, `dct:hasPart` |
+| opzioni sito | `nome_sito`, `tagline_sito`, `descrizione_presentazione`, `indirizzo_sito`, `email_sito`, `telefono_sito`, `logo_sito`, `facebook`, `youtube`, `instagram`, `twitter`, `linkedin`, `tipologia_sito`, `dipartimento`, `bloginfo(name)` | `cov:PublicOrganization`, `cov:Organization`, `foaf:Document` | `dct:title`, `dct:alternative`, `l0:description`, `sm:URL`, `sm:email`, `sm:telephone`, `sm:hasImage`, `owl:sameAs`, `clv:hasAddress`, `cov:hasOrganization`, `dct:hasPart` |
 | `persona` | `nome`, `cognome`, `email`, `telefono`, `sito_web`, `titolo`, `post_content` | `cpv:Person` | `cpv:givenName`, `cpv:familyName`, `sm:email`, `sm:telephone`, `sm:URL`, `ro:withRole`, `l0:description` |
 | `struttura` | `post_title`, `descrizione_breve`, `post_content`, `strumentazione`, `software`, `persone-struttura`, `progetti-struttura`, `pubblicazioni-struttura` | `cov:Organization` | `dct:title`, `cov:legalName`, `l0:description`, `dct:relation` |
 | `evento` | `descrizione_breve`, `data_inizio`, `data_fine`, `orario_inizio`, `luogo`, `telefono`, `email`, `sitoweb`, `persone`, `progetto`, `indirizzo_di_ricerca`, `post_content` | `cpev:PublicEvent` | `dct:title`, `cpev:eventTitle`, `ti:startTime`, `ti:endTime`, `sm:URL`, `cpev:takesPlaceIn`, `l0:description`, `dct:contributor`, `dct:relation`, `dct:subject` |

@@ -87,6 +87,10 @@ function desiitse_unipv_option_prefixes(): array {
 
 function desiitse_unipv_option_containers(): array {
 	return apply_filters( 'desiitse_unipv_option_containers', [
+		'dli_options',
+		'presentazione',
+		'socials',
+		'hero',
 		'design_unipv_ginevra',
 		'_design_unipv_ginevra',
 		'design_unipv_ginevra_options',
@@ -162,6 +166,10 @@ function desiitse_unipv_site_option( string $base_key ): string {
 	return desiitse_unipv_site_option_from_db( $keys );
 }
 
+function desiitse_unipv_site_url_option( string $base_key ): string {
+	return esc_url_raw( desiitse_unipv_site_option( $base_key ) );
+}
+
 function desiitse_unipv_site_option_from_db( array $keys ): string {
 	global $wpdb;
 
@@ -202,12 +210,28 @@ function desiitse_unipv_site_config(): array {
 	$type       = desiitse_unipv_site_option( 'tipologia_sito' );
 	$department = desiitse_unipv_site_option( 'dipartimento' );
 	$structure  = desiitse_unipv_site_option( 'nome_struttura_sito' );
+	$site_name  = desiitse_unipv_site_option( 'nome_sito' );
+	$tagline    = desiitse_unipv_site_option( 'tagline_sito' );
+	$desc       = desiitse_unipv_site_option( 'descrizione_presentazione' );
 
 	return apply_filters( 'desiitse_unipv_site_config', [
-		'type'       => $type,
-		'department' => $department,
-		'structure'  => $structure,
-		'site_name'  => desiitse_clean_text( get_bloginfo( 'name' ) ),
+		'type'        => $type,
+		'department'  => $department,
+		'structure'   => $structure,
+		'site_name'   => $site_name !== '' ? $site_name : desiitse_clean_text( get_bloginfo( 'name' ) ),
+		'tagline'     => $tagline !== '' ? $tagline : desiitse_clean_text( get_bloginfo( 'description' ) ),
+		'description' => $desc,
+		'address'     => desiitse_unipv_site_option( 'indirizzo_sito' ),
+		'email'       => desiitse_unipv_site_option( 'email_sito' ),
+		'telephone'   => desiitse_unipv_site_option( 'telefono_sito' ),
+		'logo'        => desiitse_unipv_site_url_option( 'logo_sito' ),
+		'socials'     => array_values( array_filter( [
+			desiitse_unipv_site_url_option( 'facebook' ),
+			desiitse_unipv_site_url_option( 'youtube' ),
+			desiitse_unipv_site_url_option( 'instagram' ),
+			desiitse_unipv_site_url_option( 'twitter' ),
+			desiitse_unipv_site_url_option( 'linkedin' ),
+		] ) ),
 	] );
 }
 
@@ -257,7 +281,42 @@ function desiitse_unipv_site_hierarchy_nodes( array $content_refs = [] ): array 
 		'@type'     => 'foaf:Document',
 		'@id'       => desiitse_unipv_context_id(),
 		'dct:title' => $site_name,
+		'sm:URL'    => home_url( '/' ),
 	];
+
+	if ( ! empty( $config['tagline'] ) ) {
+		$site_node['dct:alternative'] = $config['tagline'];
+	}
+
+	desiitse_add_descriptions( $site_node, [ $config['description'] ?? '' ] );
+
+	if ( ! empty( $config['address'] ) ) {
+		$site_node['clv:hasAddress'] = [
+			'@id'             => desiitse_unipv_context_id() . '-address',
+			'@type'           => 'clv:Address',
+			'clv:fullAddress' => $config['address'],
+		];
+	}
+
+	if ( ! empty( $config['email'] ) ) {
+		$site_node['sm:email'] = $config['email'];
+	}
+
+	if ( ! empty( $config['telephone'] ) ) {
+		$site_node['sm:telephone'] = $config['telephone'];
+	}
+
+	if ( ! empty( $config['logo'] ) ) {
+		$site_node['sm:hasImage'] = [ '@id' => $config['logo'] ];
+	}
+
+	if ( ! empty( $config['socials'] ) ) {
+		$social_refs = array_map(
+			fn( $url ) => [ '@id' => $url ],
+			$config['socials']
+		);
+		$site_node['owl:sameAs'] = count( $social_refs ) === 1 ? $social_refs[0] : $social_refs;
+	}
 
 	if ( ! empty( $content_refs ) ) {
 		$site_node['dct:hasPart'] = count( $content_refs ) === 1 ? $content_refs[0] : $content_refs;
