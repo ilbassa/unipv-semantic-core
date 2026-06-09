@@ -17,6 +17,22 @@ add_action( 'admin_menu', function () {
 	);
 } );
 
+add_action( 'network_admin_menu', function () {
+	if ( ! is_multisite() ) {
+		return;
+	}
+
+	add_menu_page(
+		__( 'UNIPV Semantic Core', 'unipv-semantic-core' ),
+		__( 'Semantic Core', 'unipv-semantic-core' ),
+		'manage_network_options',
+		'unipv-semantic-core-network',
+		'desiitse_network_admin_page_render',
+		'dashicons-networking',
+		80
+	);
+} );
+
 add_filter( 'plugin_action_links_' . plugin_basename( DESIITSE_PLUGIN_FILE ), function ( $links ) {
 	$url  = admin_url( 'options-general.php?page=unipv-semantic-core' );
 	$link = '<a href="' . esc_url( $url ) . '">' . esc_html__( 'Informazioni', 'unipv-semantic-core' ) . '</a>';
@@ -25,12 +41,31 @@ add_filter( 'plugin_action_links_' . plugin_basename( DESIITSE_PLUGIN_FILE ), fu
 } );
 
 add_action( 'admin_init', function () {
-	if ( ! isset( $_POST['desiitse_action'] ) || ! current_user_can( 'manage_options' ) ) {
+	if ( ! isset( $_POST['desiitse_action'] ) ) {
 		return;
 	}
 
 	check_admin_referer( 'desiitse_cache_action' );
 	$action = sanitize_key( $_POST['desiitse_action'] );
+
+	if ( $action === 'save_network_rate_limit' && is_multisite() && current_user_can( 'manage_network_options' ) ) {
+		foreach ( [ 'max_requests', 'window_seconds', 'global_rps' ] as $key ) {
+			$field = 'desiitse_rl_' . $key;
+			$value = isset( $_POST[ $field ] ) ? absint( wp_unslash( $_POST[ $field ] ) ) : 0;
+			if ( $value > 0 ) {
+				update_site_option( desiitse_rl_option_name( $key ), $value );
+			} else {
+				delete_site_option( desiitse_rl_option_name( $key ) );
+			}
+		}
+
+		wp_safe_redirect( add_query_arg( [ 'page' => 'unipv-semantic-core-network', 'desiitse_msg' => 'rl_saved' ], network_admin_url( 'admin.php' ) ) );
+		exit;
+	}
+
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
 
 	if ( $action === 'flush_all' ) {
 		desiitse_invalidate_all();
@@ -165,6 +200,164 @@ function desiitse_admin_page_render(): void {
 			<button type="submit" name="desiitse_action" value="rebuild_all" class="button button-primary">Schedula rebuild completo</button>
 			<button type="submit" name="desiitse_action" value="flush_all" class="button" onclick="return confirm('Svuotare tutta la cache semantica?');">Svuota cache</button>
 		</form>
+
+		<?php desiitse_admin_rate_limit_section(); ?>
+	</div>
+	<?php
+}
+
+function desiitse_admin_rate_limit_section(): void {
+	$namespaces = implode( ', ', array_map(
+		fn( $namespace ) => '/' . trim( $namespace, '/' ) . '/*',
+		desiitse_rl_protected_namespaces()
+	) );
+	$network_values = [];
+	if ( is_multisite() ) {
+		foreach ( [ 'max_requests', 'window_seconds', 'global_rps' ] as $key ) {
+			$network_values[ $key ] = get_site_option( desiitse_rl_option_name( $key ), '' );
+		}
+	}
+	?>
+	<h2>Protezione contro richieste massive</h2>
+	<p>
+		Il plugin include un sistema di rate limiting integrato sulle route REST protette
+		<code><?php echo esc_html( $namespaces ); ?></code>. In caso di superamento delle soglie risponde con
+		<code>HTTP 429 Too Many Requests</code> e header informativi per i client.
+	</p>
+	<?php if ( is_network_admin() && is_multisite() && current_user_can( 'manage_network_options' ) ) : ?>
+		<form method="post" style="margin: 1em 0;">
+			<?php wp_nonce_field( 'desiitse_cache_action' ); ?>
+			<input type="hidden" name="desiitse_action" value="save_network_rate_limit">
+			<table class="form-table" role="presentation">
+				<tbody>
+					<tr>
+						<th scope="row"><label for="desiitse_rl_max_requests">Richieste per IP</label></th>
+						<td>
+							<input type="number" min="1" step="1" id="desiitse_rl_max_requests" name="desiitse_rl_max_requests" value="<?php echo esc_attr( (string) $network_values['max_requests'] ); ?>" placeholder="<?php echo esc_attr( (string) DESIITSE_RL_MAX_REQUESTS ); ?>">
+							<p class="description">Se valorizzato a livello Network, sovrascrive il valore del singolo sito.</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="desiitse_rl_window_seconds">Finestra in secondi</label></th>
+						<td>
+							<input type="number" min="1" step="1" id="desiitse_rl_window_seconds" name="desiitse_rl_window_seconds" value="<?php echo esc_attr( (string) $network_values['window_seconds'] ); ?>" placeholder="<?php echo esc_attr( (string) DESIITSE_RL_WINDOW_SECONDS ); ?>">
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="desiitse_rl_global_rps">Throttle globale req/s</label></th>
+						<td>
+							<input type="number" min="1" step="1" id="desiitse_rl_global_rps" name="desiitse_rl_global_rps" value="<?php echo esc_attr( (string) $network_values['global_rps'] ); ?>" placeholder="<?php echo esc_attr( (string) DESIITSE_RL_GLOBAL_RPS ); ?>">
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			<p>
+				<button type="submit" class="button button-primary">Salva configurazione Network</button>
+			</p>
+		</form>
+	<?php elseif ( is_multisite() ) : ?>
+		<p>
+			In multisite le opzioni Network, quando valorizzate, hanno precedenza sui valori del singolo sito.
+		</p>
+	<?php endif; ?>
+	<table class="widefat striped">
+		<thead>
+			<tr>
+				<th>Meccanismo</th>
+				<th>Valore attuale</th>
+				<th>Filtro</th>
+				<th>Descrizione</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td>Rate limit per IP</td>
+				<td><code><?php echo esc_html( (string) DESIITSE_RL_MAX_REQUESTS ); ?> richieste / <?php echo esc_html( (string) DESIITSE_RL_WINDOW_SECONDS ); ?>s</code></td>
+				<td><code>desiitse_rl_max_requests</code><br><code>desiitse_rl_window_seconds</code></td>
+				<td>Ogni IP puo chiamare gli endpoint al massimo N volte nella finestra configurata.</td>
+			</tr>
+			<tr>
+				<td>Global throttle</td>
+				<td><code><?php echo esc_html( (string) DESIITSE_RL_GLOBAL_RPS ); ?> richieste/s</code></td>
+				<td><code>desiitse_rl_global_rps</code></td>
+				<td>Limite globale al numero di richieste al secondo verso le route del plugin.</td>
+			</tr>
+			<tr>
+				<td>Whitelist IP</td>
+				<td><code><?php echo esc_html( implode( ', ', desiitse_rl_whitelist() ) ); ?></code></td>
+				<td><code>desiitse_rl_whitelist_ips</code></td>
+				<td>IP esenti dai controlli, ad esempio monitoraggio interno o crawler autorizzati.</td>
+			</tr>
+			<tr>
+				<td>Proxy e CDN</td>
+				<td>Disabilitato di default</td>
+				<td><code>desiitse_rl_trust_proxy_headers</code></td>
+				<td>Da abilitare solo dietro proxy fidati per leggere l'IP reale dagli header.</td>
+			</tr>
+			<tr>
+				<td>Header risposta</td>
+				<td><code>X-RateLimit-*</code></td>
+				<td>-</td>
+				<td>Le risposte includono limite, richieste residue e reset; sui 429 anche <code>Retry-After</code>.</td>
+			</tr>
+		</tbody>
+	</table>
+	<p>
+		Esempio: <code>add_filter( 'desiitse_rl_max_requests', fn() => 30 );</code>
+	</p>
+	<?php
+}
+
+function desiitse_network_admin_page_render(): void {
+	if ( ! is_multisite() || ! current_user_can( 'manage_network_options' ) ) {
+		return;
+	}
+
+	$index_url = rest_url( DESIITSE_UNIPV_REST_NAMESPACE . '/network/graphs' );
+	$rows      = desiitse_unipv_network_graph_rows();
+	$msg       = isset( $_GET['desiitse_msg'] ) ? sanitize_key( wp_unslash( $_GET['desiitse_msg'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	?>
+	<div class="wrap">
+		<h1>UNIPV Semantic Core - Network</h1>
+		<p>Indice multisite dei grafi JSON-LD UNIPV esposti dai siti pubblici del network.</p>
+
+		<?php if ( $msg === 'rl_saved' ) : ?>
+			<div class="notice notice-success"><p>Configurazione Network del rate limiting salvata.</p></div>
+		<?php endif; ?>
+
+		<h2>Endpoint network</h2>
+		<p>
+			<code>GET</code>
+			<a href="<?php echo esc_url( $index_url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $index_url ); ?></a>
+		</p>
+
+		<h2>Grafi dei siti</h2>
+		<table class="widefat striped">
+			<thead>
+				<tr>
+					<th>Sito</th>
+					<th>Tipologia</th>
+					<th>Home</th>
+					<th>Endpoint grafo</th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php if ( empty( $rows ) ) : ?>
+					<tr><td colspan="4">Nessun sito pubblico trovato nel network.</td></tr>
+				<?php else : ?>
+					<?php foreach ( $rows as $row ) : ?>
+						<tr>
+							<td><?php echo esc_html( $row['name'] ); ?></td>
+							<td><?php echo esc_html( $row['tipologiaName'] ?: $row['tipologia'] ); ?></td>
+							<td><a href="<?php echo esc_url( $row['home_url'] ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $row['home_url'] ); ?></a></td>
+							<td><a href="<?php echo esc_url( $row['rest_url'] ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $row['rest_url'] ); ?></a></td>
+						</tr>
+					<?php endforeach; ?>
+				<?php endif; ?>
+			</tbody>
+		</table>
+
+		<?php desiitse_admin_rate_limit_section(); ?>
 	</div>
 	<?php
 }

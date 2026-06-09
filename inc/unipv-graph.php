@@ -29,6 +29,74 @@ add_action( 'rest_api_init', function () {
 	}
 } );
 
+add_action( 'rest_api_init', function () {
+	if ( ! is_multisite() ) {
+		return;
+	}
+
+	register_rest_route( DESIITSE_UNIPV_REST_NAMESPACE, '/network/graphs', [
+		'methods'             => 'GET',
+		'callback'            => fn( WP_REST_Request $request ) => rest_ensure_response( desiitse_unipv_network_graph_index() ),
+		'permission_callback' => '__return_true',
+	] );
+} );
+
+function desiitse_unipv_network_graph_index(): array {
+	return [
+		'@context' => [
+			'dct' => 'http://purl.org/dc/terms/',
+			'sm'  => 'https://w3id.org/italia/onto/SM/',
+		],
+		'graphs'   => desiitse_unipv_network_graph_rows(),
+	];
+}
+
+function desiitse_unipv_site_type_options(): array {
+	return [
+		'evento'                 => 'Evento',
+		'laboratorio_di_ricerca' => 'Laboratorio di ricerca',
+		'struttura_di_ateneo'    => 'Struttura di Ateneo',
+		'progetto_di_ricerca'    => 'Progetto di ricerca',
+	];
+}
+
+function desiitse_unipv_site_type_label( string $type ): string {
+	$options = desiitse_unipv_site_type_options();
+	return desiitse_clean_text( $options[ $type ] ?? str_replace( '_', ' ', $type ) );
+}
+
+function desiitse_unipv_network_graph_rows(): array {
+	if ( ! is_multisite() ) {
+		return [];
+	}
+
+	$sites = get_sites( [
+		'number'   => 0,
+		'public'   => 1,
+		'archived' => 0,
+		'deleted'  => 0,
+		'spam'     => 0,
+	] );
+
+	$rows = [];
+	foreach ( $sites as $site ) {
+		switch_to_blog( (int) $site->blog_id );
+		$type = desiitse_unipv_site_option( 'tipologia_sito' );
+
+		$rows[] = [
+			'name'          => desiitse_clean_text( get_bloginfo( 'name' ) ),
+			'tipologia'     => $type,
+			'tipologiaName' => $type !== '' ? desiitse_unipv_site_type_label( $type ) : '',
+			'home_url'      => home_url( '/' ),
+			'rest_url'      => rest_url( DESIITSE_UNIPV_REST_NAMESPACE . '/graph' ),
+		];
+
+		restore_current_blog();
+	}
+
+	return $rows;
+}
+
 function desiitse_unipv_posts( string $post_type ): array {
 	if ( ! post_type_exists( $post_type ) ) {
 		return [];

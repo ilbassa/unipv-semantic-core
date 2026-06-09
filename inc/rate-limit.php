@@ -32,9 +32,33 @@ defined( 'ABSPATH' ) || exit;
 
 // ── Costanti (valori default, sovrascrivibili via filtro) ─────────────────────
 
-define( 'DESIITSE_RL_MAX_REQUESTS',   (int) apply_filters( 'desiitse_rl_max_requests',   60  ) ); // req per IP per finestra
-define( 'DESIITSE_RL_WINDOW_SECONDS', (int) apply_filters( 'desiitse_rl_window_seconds', 60  ) ); // secondi della finestra
-define( 'DESIITSE_RL_GLOBAL_RPS',     (int) apply_filters( 'desiitse_rl_global_rps',     100 ) ); // req/s globali massime
+function desiitse_rl_option_name( string $key ): string {
+	return 'desiitse_rl_' . $key;
+}
+
+function desiitse_rl_site_option_value( string $key, int $default, string $filter ): int {
+	$value = get_option( desiitse_rl_option_name( $key ), null );
+	if ( $value !== null && $value !== '' ) {
+		return max( 1, (int) $value );
+	}
+
+	return max( 1, (int) apply_filters( $filter, $default ) );
+}
+
+function desiitse_rl_effective_option_value( string $key, int $default, string $filter ): int {
+	if ( is_multisite() ) {
+		$value = get_site_option( desiitse_rl_option_name( $key ), null );
+		if ( $value !== null && $value !== '' ) {
+			return max( 1, (int) $value );
+		}
+	}
+
+	return desiitse_rl_site_option_value( $key, $default, $filter );
+}
+
+define( 'DESIITSE_RL_MAX_REQUESTS',   desiitse_rl_effective_option_value( 'max_requests',   60,  'desiitse_rl_max_requests' ) ); // req per IP per finestra
+define( 'DESIITSE_RL_WINDOW_SECONDS', desiitse_rl_effective_option_value( 'window_seconds', 60,  'desiitse_rl_window_seconds' ) ); // secondi della finestra
+define( 'DESIITSE_RL_GLOBAL_RPS',     desiitse_rl_effective_option_value( 'global_rps',     100, 'desiitse_rl_global_rps' ) ); // req/s globali massime
 
 // ── Prefissi delle route protette ─────────────────────────────────────────────
 

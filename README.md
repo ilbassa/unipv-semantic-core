@@ -12,7 +12,16 @@ Il plugin espone grafi JSON-LD pubblici sotto il namespace REST:
 - `/wp-json/unipv/v1/graph/indirizzi-di-ricerca`
 - `/wp-json/unipv/v1/graph/pubblicazioni`
 
+In installazioni multisite espone inoltre l'indice network:
+
+- `/wp-json/unipv/v1/network/graphs`
+
+L'endpoint restituisce l'elenco dei siti pubblici del network con tipologia del sito e rispettivo `/wp-json/unipv/v1/graph`.
+
 Restano riusati dal plugin originale: cache a transient + option, invalidazione su salvataggio contenuti, rebuild asincrono via WP-Cron, rate limiting e toggle di disponibilita API.
+
+La protezione contro richieste massive si applica a tutte le route `/wp-json/unipv/v1/*`, incluso l'indice multisite `/wp-json/unipv/v1/network/graphs`, con limiti per IP, throttle globale e header `X-RateLimit-*`.
+In multisite le soglie possono essere configurate dal Network Admin: i valori Network, quando presenti, hanno precedenza sui valori del singolo sito.
 
 ## Profilo dati iniziale
 
