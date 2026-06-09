@@ -2,24 +2,24 @@
 /**
  * Pagina di amministrazione del plugin.
  *
- * @package Semantic_Unipv
+ * @package Unipv_Semantic_Core
  */
 
 defined( 'ABSPATH' ) || exit;
 
 add_action( 'admin_menu', function () {
 	add_options_page(
-		__( 'Semantic University UNIPV', 'semantic-unipv' ),
-		__( 'Semantic UNIPV', 'semantic-unipv' ),
+		__( 'UNIPV Semantic Core', 'unipv-semantic-core' ),
+		__( 'Semantic Core', 'unipv-semantic-core' ),
 		'manage_options',
-		'semantic-unipv',
+		'unipv-semantic-core',
 		'desiitse_admin_page_render'
 	);
 } );
 
 add_filter( 'plugin_action_links_' . plugin_basename( DESIITSE_PLUGIN_FILE ), function ( $links ) {
-	$url  = admin_url( 'options-general.php?page=semantic-unipv' );
-	$link = '<a href="' . esc_url( $url ) . '">' . esc_html__( 'Informazioni', 'semantic-unipv' ) . '</a>';
+	$url  = admin_url( 'options-general.php?page=unipv-semantic-core' );
+	$link = '<a href="' . esc_url( $url ) . '">' . esc_html__( 'Informazioni', 'unipv-semantic-core' ) . '</a>';
 	array_unshift( $links, $link );
 	return $links;
 } );
@@ -34,19 +34,19 @@ add_action( 'admin_init', function () {
 
 	if ( $action === 'flush_all' ) {
 		desiitse_invalidate_all();
-		wp_safe_redirect( add_query_arg( [ 'page' => 'semantic-unipv', 'desiitse_msg' => 'flushed' ], admin_url( 'options-general.php' ) ) );
+		wp_safe_redirect( add_query_arg( [ 'page' => 'unipv-semantic-core', 'desiitse_msg' => 'flushed' ], admin_url( 'options-general.php' ) ) );
 		exit;
 	}
 
 	if ( $action === 'rebuild_all' ) {
 		desiitse_schedule_rebuild_all();
-		wp_safe_redirect( add_query_arg( [ 'page' => 'semantic-unipv', 'desiitse_msg' => 'scheduled' ], admin_url( 'options-general.php' ) ) );
+		wp_safe_redirect( add_query_arg( [ 'page' => 'unipv-semantic-core', 'desiitse_msg' => 'scheduled' ], admin_url( 'options-general.php' ) ) );
 		exit;
 	}
 
 	if ( $action === 'toggle_api' ) {
 		update_option( DESIITSE_ENABLED_OPTION, isset( $_POST['desiitse_api_enabled'] ) ? '1' : '0' );
-		wp_safe_redirect( add_query_arg( [ 'page' => 'semantic-unipv', 'desiitse_msg' => 'api_toggled' ], admin_url( 'options-general.php' ) ) );
+		wp_safe_redirect( add_query_arg( [ 'page' => 'unipv-semantic-core', 'desiitse_msg' => 'api_toggled' ], admin_url( 'options-general.php' ) ) );
 		exit;
 	}
 
@@ -54,7 +54,7 @@ add_action( 'admin_init', function () {
 		$new_code = isset( $_POST['desiitse_ipa_code'] ) ? sanitize_text_field( wp_unslash( $_POST['desiitse_ipa_code'] ) ) : '';
 		desiitse_save_ipa_code( $new_code );
 		desiitse_invalidate_all();
-		wp_safe_redirect( add_query_arg( [ 'page' => 'semantic-unipv', 'desiitse_msg' => 'ipa_saved' ], admin_url( 'options-general.php' ) ) );
+		wp_safe_redirect( add_query_arg( [ 'page' => 'unipv-semantic-core', 'desiitse_msg' => 'ipa_saved' ], admin_url( 'options-general.php' ) ) );
 		exit;
 	}
 } );
@@ -88,7 +88,7 @@ function desiitse_admin_page_render(): void {
 	];
 	?>
 	<div class="wrap">
-		<h1>Semantic University UNIPV</h1>
+		<h1>UNIPV Semantic Core</h1>
 		<p>Esporta i custom post type UNIPV in JSON-LD tramite endpoint pubblici <code>/wp-json/unipv/v1/*</code>, con cache precomputata e rebuild via WP-Cron.</p>
 
 		<?php if ( $msg === 'flushed' ) : ?>
@@ -107,11 +107,11 @@ function desiitse_admin_page_render(): void {
 			<strong>
 				<?php
 				if ( $maint ) {
-					echo esc_html__( 'sito in manutenzione, API bloccate con HTTP 503', 'semantic-unipv' );
+					echo esc_html__( 'sito in manutenzione, API bloccate con HTTP 503', 'unipv-semantic-core' );
 				} elseif ( $enabled ) {
-					echo esc_html__( 'attive', 'semantic-unipv' );
+					echo esc_html__( 'attive', 'unipv-semantic-core' );
 				} else {
-					echo esc_html__( 'disabilitate da opzione admin', 'semantic-unipv' );
+					echo esc_html__( 'disabilitate da opzione admin', 'unipv-semantic-core' );
 				}
 				?>
 			</strong>

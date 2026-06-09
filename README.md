@@ -1,6 +1,6 @@
-# Semantic University UNIPV
+# UNIPV Semantic Core
 
-Fork del plugin "Semantic Italia" orientato ai custom post type UNIPV.
+Plugin semantico core per i custom post type UNIPV.
 
 Il plugin espone grafi JSON-LD pubblici sotto il namespace REST:
 

@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name:       Semantic University UNIPV
- * Plugin URI:        https://github.com/ilbassa/uni-wordpress-semantic-plugin
+ * Plugin Name:       UNIPV Semantic Core
+ * Plugin URI:        https://github.com/ilbassa/unipv-semantic-core
  * Description:       Esportazione JSON-LD semantica allineata a schema.gov.it per i custom post type UNIPV.
  * Version:           0.1.0
  * Requires at least: 6.0
@@ -9,7 +9,7 @@
  * Author:            Universita di Pavia
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       semantic-unipv
+ * Text Domain:       unipv-semantic-core
  */
 
 defined( 'ABSPATH' ) || exit;
