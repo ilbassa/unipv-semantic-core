@@ -52,6 +52,239 @@ function desiitse_unipv_url_meta( int $post_id, string $key ): string {
 	return esc_url_raw( (string) get_post_meta( $post_id, $key, true ) );
 }
 
+function desiitse_unipv_department_options(): array {
+	return [
+		'dipartimento_biologia_biotecnologie_lazzaro_spallanzani'             => 'Dipartimento di Biologia e Biotecnologie "Lazzaro Spallanzani"',
+		'dipartimento_chimica'                                                => 'Dipartimento di Chimica',
+		'dipartimento_fisica'                                                 => 'Dipartimento di Fisica',
+		'dipartimento_giurisprudenza'                                         => 'Dipartimento di Giurisprudenza',
+		'dipartimento_ingegneria_civile_architettura'                         => 'Dipartimento di Ingegneria Civile e Architettura',
+		'dipartimento_ingegneria_industriale_informazione'                    => 'Dipartimento di Ingegneria Industriale e dell\'Informazione',
+		'dipartimento_matematica'                                             => 'Dipartimento di Matematica',
+		'dipartimento_medicina_interna_terapia_medica'                        => 'Dipartimento di Medicina Interna e Terapia Medica',
+		'dipartimento_medicina_molecolare'                                    => 'Dipartimento di Medicina Molecolare',
+		'dipartimento_sanita_pubblica_medicina_sperimentale_forense'          => 'Dipartimento di Sanita Pubblica, Medicina Sperimentale e Forense',
+		'dipartimento_scienze_clinico_chirurgiche_diagnostiche_pediatriche'   => 'Dipartimento di Scienze Clinico Chirurgiche, Diagnostiche e Pediatriche',
+		'dipartimento_scienze_economiche_aziendali'                           => 'Dipartimento di Scienze Economiche e Aziendali',
+		'dipartimento_scienze_farmaco'                                        => 'Dipartimento di Scienze del Farmaco',
+		'dipartimento_musicologia_beni_culturali'                             => 'Dipartimento di Musicologia e Beni Culturali',
+		'dipartimento_scienze_politiche_sociali'                              => 'Dipartimento di Scienze Politiche e Sociali',
+		'dipartimento_scienze_sistema_nervoso_comportamento'                  => 'Dipartimento di Scienze del Sistema Nervoso e del Comportamento (dal 1 gennaio 2013)',
+		'dipartimento_scienze_terra_ambiente'                                 => 'Dipartimento di Scienze della Terra e dell\'Ambiente',
+		'dipartimento_studi_umanistici'                                       => 'Dipartimento di Studi Umanistici',
+	];
+}
+
+function desiitse_unipv_option_prefixes(): array {
+	return apply_filters( 'desiitse_unipv_option_prefixes', [
+		'',
+		'_design_unipv_ginevra_',
+		'design_unipv_ginevra_',
+		'_unipv_',
+		'unipv_',
+	] );
+}
+
+function desiitse_unipv_option_containers(): array {
+	return apply_filters( 'desiitse_unipv_option_containers', [
+		'design_unipv_ginevra',
+		'_design_unipv_ginevra',
+		'design_unipv_ginevra_options',
+		'_design_unipv_ginevra_options',
+		'design_unipv_ginevra_header_options',
+		'_design_unipv_ginevra_header_options',
+		'header_options',
+		'_header_options',
+		'unipv_header_options',
+		'_unipv_header_options',
+	] );
+}
+
+function desiitse_unipv_find_array_value( $data, array $keys ): string {
+	if ( ! is_array( $data ) ) {
+		return '';
+	}
+
+	foreach ( $keys as $key ) {
+		if ( isset( $data[ $key ] ) && ! is_array( $data[ $key ] ) ) {
+			return desiitse_clean_text( $data[ $key ] );
+		}
+	}
+
+	foreach ( $data as $value ) {
+		if ( is_array( $value ) ) {
+			$found = desiitse_unipv_find_array_value( $value, $keys );
+			if ( $found !== '' ) {
+				return $found;
+			}
+		}
+	}
+
+	return '';
+}
+
+function desiitse_unipv_site_option( string $base_key ): string {
+	$keys = array_map(
+		fn( $prefix ) => $prefix . $base_key,
+		desiitse_unipv_option_prefixes()
+	);
+
+	foreach ( $keys as $key ) {
+		$value = desiitse_clean_text( get_option( $key, '' ) );
+		if ( $value !== '' ) {
+			return $value;
+		}
+
+		$value = desiitse_clean_text( get_theme_mod( $key, '' ) );
+		if ( $value !== '' ) {
+			return $value;
+		}
+	}
+
+	if ( function_exists( 'cmb2_get_option' ) ) {
+		foreach ( desiitse_unipv_option_containers() as $container ) {
+			foreach ( $keys as $key ) {
+				$value = desiitse_clean_text( cmb2_get_option( $container, $key, '' ) );
+				if ( $value !== '' ) {
+					return $value;
+				}
+			}
+		}
+	}
+
+	foreach ( desiitse_unipv_option_containers() as $container ) {
+		$value = desiitse_unipv_find_array_value( maybe_unserialize( get_option( $container, [] ) ), $keys );
+		if ( $value !== '' ) {
+			return $value;
+		}
+	}
+
+	return desiitse_unipv_site_option_from_db( $keys );
+}
+
+function desiitse_unipv_site_option_from_db( array $keys ): string {
+	global $wpdb;
+
+	if ( ! ( $wpdb instanceof wpdb ) ) {
+		return '';
+	}
+
+	foreach ( $keys as $key ) {
+		$like = '%' . $wpdb->esc_like( $key ) . '%';
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE %s OR option_value LIKE %s LIMIT 20",
+				$like,
+				$like
+			),
+			ARRAY_A
+		);
+
+		foreach ( $rows as $row ) {
+			if ( $row['option_name'] === $key ) {
+				$value = desiitse_clean_text( maybe_unserialize( $row['option_value'] ) );
+				if ( $value !== '' ) {
+					return $value;
+				}
+			}
+
+			$value = desiitse_unipv_find_array_value( maybe_unserialize( $row['option_value'] ), $keys );
+			if ( $value !== '' ) {
+				return $value;
+			}
+		}
+	}
+
+	return '';
+}
+
+function desiitse_unipv_site_config(): array {
+	$type       = desiitse_unipv_site_option( 'tipologia_sito' );
+	$department = desiitse_unipv_site_option( 'dipartimento' );
+	$structure  = desiitse_unipv_site_option( 'nome_struttura_sito' );
+
+	return apply_filters( 'desiitse_unipv_site_config', [
+		'type'       => $type,
+		'department' => $department,
+		'structure'  => $structure,
+		'site_name'  => desiitse_clean_text( get_bloginfo( 'name' ) ),
+	] );
+}
+
+function desiitse_unipv_department_label( string $department ): string {
+	$options = desiitse_unipv_department_options();
+	return desiitse_clean_text( $options[ $department ] ?? str_replace( '_', ' ', $department ) );
+}
+
+function desiitse_unipv_context_ref(): array {
+	return [ '@id' => desiitse_unipv_context_id() ];
+}
+
+function desiitse_unipv_context_id(): string {
+	return home_url( '/#site' );
+}
+
+function desiitse_unipv_department_id( string $department ): string {
+	return home_url( '/#' . sanitize_title( $department ) );
+}
+
+function desiitse_unipv_structure_id( string $structure ): string {
+	return home_url( '/#' . sanitize_title( $structure ) );
+}
+
+function desiitse_unipv_site_hierarchy_nodes( array $content_refs = [] ): array {
+	$config       = desiitse_unipv_site_config();
+	$type         = $config['type'];
+	$department   = $config['department'];
+	$site_name    = $config['site_name'] !== '' ? $config['site_name'] : 'Sito UNIPV';
+	$nodes        = [];
+	$content_refs = array_values( array_filter( $content_refs ) );
+	$site_ref     = desiitse_unipv_context_ref();
+
+	if ( in_array( $type, [ 'evento', 'laboratorio_di_ricerca', 'progetto_di_ricerca' ], true ) && $department !== '' ) {
+		$department_label = desiitse_unipv_department_label( $department );
+		$department_node  = [
+			'@type'                 => 'cov:Organization',
+			'@id'                   => desiitse_unipv_department_id( $department ),
+			'dct:title'             => $department_label,
+			'cov:legalName'         => $department_label,
+			'dct:hasPart'           => $site_ref,
+		];
+		$nodes[] = $department_node;
+	}
+
+	$site_node = [
+		'@type'     => 'foaf:Document',
+		'@id'       => desiitse_unipv_context_id(),
+		'dct:title' => $site_name,
+	];
+
+	if ( ! empty( $content_refs ) ) {
+		$site_node['dct:hasPart'] = count( $content_refs ) === 1 ? $content_refs[0] : $content_refs;
+	}
+
+	$nodes[] = $site_node;
+
+	return $nodes;
+}
+
+function desiitse_unipv_root_node( array $hierarchy_nodes ): array {
+	$node = desiitse_university_data();
+
+	if ( empty( $hierarchy_nodes[0]['@id'] ) ) {
+		return $node;
+	}
+
+	$child = [ '@id' => $hierarchy_nodes[0]['@id'] ];
+	if ( ( $hierarchy_nodes[0]['@type'] ?? '' ) === 'cov:Organization' ) {
+		$node['cov:hasOrganization'] = $child;
+	} else {
+		$node['dct:hasPart'] = $child;
+	}
+
+	return $node;
+}
+
 function desiitse_unipv_date( int $post_id, string $date_key, string $time_key = '' ): string {
 	$date = trim( (string) get_post_meta( $post_id, $date_key, true ) );
 	if ( $date === '' ) {
@@ -104,22 +337,26 @@ function desiitse_unipv_ref_list( array $ids ): array {
 }
 
 function desiitse_build_unipv_nodes(): array {
-	return desiitse_unique_nodes( array_merge(
-		[
-			desiitse_university_data(),
-			[
-				'@type'         => 'foaf:Document',
-				'@id'           => home_url( '/' ),
-				'dct:title'     => desiitse_clean_text( get_bloginfo( 'name' ) ),
-				'dct:publisher' => desiitse_university_ref(),
-			],
-		],
+	$content_nodes = desiitse_unique_nodes( array_merge(
 		desiitse_build_unipv_persona_nodes(),
 		desiitse_build_unipv_struttura_nodes(),
 		desiitse_build_unipv_evento_nodes(),
 		desiitse_build_unipv_progetto_nodes(),
 		desiitse_build_unipv_indirizzo_nodes(),
 		desiitse_build_unipv_pubblicazione_nodes()
+	) );
+	$content_refs  = array_map(
+		fn( $node ) => is_array( $node ) && ! empty( $node['@id'] ) ? [ '@id' => $node['@id'] ] : null,
+		$content_nodes
+	);
+	$hierarchy_nodes = desiitse_unipv_site_hierarchy_nodes( $content_refs );
+
+	return desiitse_unique_nodes( array_merge(
+		[
+			desiitse_unipv_root_node( $hierarchy_nodes ),
+		],
+		$hierarchy_nodes,
+		$content_nodes
 	) );
 }
 
@@ -171,11 +408,10 @@ function desiitse_build_unipv_struttura_nodes(): array {
 	foreach ( desiitse_unipv_posts( 'struttura' ) as $post ) {
 		$title = desiitse_clean_text( get_the_title( $post ) );
 		$node  = [
-			'@type'               => 'cov:Organization',
-			'@id'                 => desiitse_node_id( $post ),
-			'dct:title'           => $title,
-			'cov:legalName'       => $title,
-			'cov:hasOrganization' => desiitse_university_ref(),
+			'@type'         => 'cov:Organization',
+			'@id'           => desiitse_node_id( $post ),
+			'dct:title'     => $title,
+			'cov:legalName' => $title,
 		];
 
 		desiitse_add_descriptions( $node, [
@@ -212,7 +448,6 @@ function desiitse_build_unipv_evento_nodes(): array {
 			'@id'             => desiitse_node_id( $post ),
 			'dct:title'       => $title,
 			'cpev:eventTitle' => $title,
-			'dct:publisher'   => desiitse_university_ref(),
 		];
 
 		$start = desiitse_unipv_date( $post->ID, 'data_inizio', 'orario_inizio' );
@@ -262,10 +497,9 @@ function desiitse_build_unipv_progetto_nodes(): array {
 	foreach ( desiitse_unipv_posts( 'progetto' ) as $post ) {
 		$title = desiitse_clean_text( get_the_title( $post ) );
 		$node  = [
-			'@type'         => 'her:PublicResearchProject',
-			'@id'           => desiitse_node_id( $post ),
-			'dct:title'     => $title,
-			'dct:publisher' => desiitse_university_ref(),
+			'@type'     => 'her:PublicResearchProject',
+			'@id'       => desiitse_node_id( $post ),
+			'dct:title' => $title,
 		];
 
 		$start = desiitse_unipv_date( $post->ID, 'data_inizio' );
@@ -312,7 +546,6 @@ function desiitse_build_unipv_indirizzo_nodes(): array {
 			'@id'           => desiitse_node_id( $post ),
 			'dct:title'     => $title,
 			'skos:prefLabel' => $title,
-			'dct:publisher' => desiitse_university_ref(),
 		];
 
 		foreach ( [
@@ -345,10 +578,9 @@ function desiitse_build_unipv_pubblicazione_nodes(): array {
 	foreach ( desiitse_unipv_posts( 'pubblicazione' ) as $post ) {
 		$title = desiitse_clean_text( get_the_title( $post ) );
 		$node  = [
-			'@type'         => 'foaf:Document',
-			'@id'           => desiitse_node_id( $post ),
-			'dct:title'     => $title,
-			'dct:publisher' => desiitse_university_ref(),
+			'@type'     => 'foaf:Document',
+			'@id'       => desiitse_node_id( $post ),
+			'dct:title' => $title,
 		];
 
 		foreach ( [

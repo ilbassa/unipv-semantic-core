@@ -239,8 +239,8 @@ function desiitse_university_ref(): array {
 
 function desiitse_university_data(): array {
 	$data = [
-		'title'      => desiitse_clean_text( get_bloginfo( 'name' ) ),
-		'legalName'  => desiitse_clean_text( get_bloginfo( 'name' ) ),
+		'title'      => 'Università degli studi di Pavia',
+		'legalName'  => 'Università degli studi di Pavia',
 		'acronym'    => 'UNIPV',
 	];
 
@@ -390,7 +390,6 @@ function desiitse_minimal_related_node( int $post_id ): ?array {
 				'@id'           => desiitse_node_id( $post ),
 				'dct:title'     => $title,
 				'cov:legalName' => $title,
-				'cov:hasOrganization' => desiitse_university_ref(),
 			];
 		case 'evento':
 			return [
