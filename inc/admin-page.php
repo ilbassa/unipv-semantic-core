@@ -63,6 +63,25 @@ add_action( 'admin_init', function () {
 		exit;
 	}
 
+	if ( $action === 'save_network_sites' && is_multisite() && current_user_can( 'manage_network_options' ) ) {
+		$requested_ids = isset( $_POST['desiitse_network_site_ids'] )
+			? array_map( 'absint', (array) wp_unslash( $_POST['desiitse_network_site_ids'] ) )
+			: [];
+		$allowed_ids = array_map(
+			fn( WP_Site $site ) => (int) $site->blog_id,
+			desiitse_unipv_network_candidate_sites()
+		);
+		$published_ids = desiitse_unipv_normalize_site_ids( array_intersect( $requested_ids, $allowed_ids ) );
+		$excluded_ids  = desiitse_unipv_normalize_site_ids( array_diff( $allowed_ids, $published_ids ) );
+
+		update_site_option( DESIITSE_UNIPV_NETWORK_EXCLUDED_SITES_OPTION, $excluded_ids );
+		delete_site_option( DESIITSE_UNIPV_NETWORK_SITES_OPTION );
+		desiitse_unipv_invalidate_network_graph_index();
+
+		wp_safe_redirect( add_query_arg( [ 'page' => 'unipv-semantic-core-network', 'desiitse_msg' => 'sites_saved' ], network_admin_url( 'admin.php' ) ) );
+		exit;
+	}
+
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
@@ -313,9 +332,28 @@ function desiitse_network_admin_page_render(): void {
 		return;
 	}
 
-	$index_url = rest_url( DESIITSE_UNIPV_REST_NAMESPACE . '/network/graphs' );
-	$rows      = desiitse_unipv_network_graph_rows();
-	$msg       = isset( $_GET['desiitse_msg'] ) ? sanitize_key( wp_unslash( $_GET['desiitse_msg'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	$index_url       = rest_url( DESIITSE_UNIPV_REST_NAMESPACE . '/network/graphs' );
+	$candidate_rows  = [];
+	$candidate_sites = desiitse_unipv_network_candidate_sites();
+	$excluded_ids   = desiitse_unipv_network_excluded_site_ids();
+	$msg            = isset( $_GET['desiitse_msg'] ) ? sanitize_key( wp_unslash( $_GET['desiitse_msg'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+	foreach ( $candidate_sites as $site ) {
+		switch_to_blog( (int) $site->blog_id );
+		try {
+			$type = desiitse_unipv_site_option( 'tipologia_sito' );
+			$candidate_rows[] = [
+				'blog_id'       => (int) $site->blog_id,
+				'name'          => desiitse_clean_text( get_bloginfo( 'name' ) ),
+				'tipologia'     => $type,
+				'tipologiaName' => $type !== '' ? desiitse_unipv_site_type_label( $type ) : '',
+				'home_url'      => home_url( '/' ),
+				'rest_url'      => rest_url( DESIITSE_UNIPV_REST_NAMESPACE . '/graph' ),
+			];
+		} finally {
+			restore_current_blog();
+		}
+	}
 	?>
 	<div class="wrap">
 		<h1>UNIPV Semantic Core - Network</h1>
@@ -323,6 +361,8 @@ function desiitse_network_admin_page_render(): void {
 
 		<?php if ( $msg === 'rl_saved' ) : ?>
 			<div class="notice notice-success"><p>Configurazione Network del rate limiting salvata.</p></div>
+		<?php elseif ( $msg === 'sites_saved' ) : ?>
+			<div class="notice notice-success"><p>Siti pubblicati nell'indice semantico aggiornati e cache invalidata.</p></div>
 		<?php endif; ?>
 
 		<h2>Endpoint network</h2>
@@ -332,30 +372,43 @@ function desiitse_network_admin_page_render(): void {
 		</p>
 
 		<h2>Grafi dei siti</h2>
-		<table class="widefat striped">
-			<thead>
-				<tr>
-					<th>Sito</th>
-					<th>Tipologia</th>
-					<th>Home</th>
-					<th>Endpoint grafo</th>
-				</tr>
-			</thead>
-			<tbody>
-				<?php if ( empty( $rows ) ) : ?>
-					<tr><td colspan="4">Nessun sito pubblico trovato nel network.</td></tr>
-				<?php else : ?>
-					<?php foreach ( $rows as $row ) : ?>
-						<tr>
-							<td><?php echo esc_html( $row['name'] ); ?></td>
-							<td><?php echo esc_html( $row['tipologiaName'] ?: $row['tipologia'] ); ?></td>
-							<td><a href="<?php echo esc_url( $row['home_url'] ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $row['home_url'] ); ?></a></td>
-							<td><a href="<?php echo esc_url( $row['rest_url'] ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $row['rest_url'] ); ?></a></td>
-						</tr>
-					<?php endforeach; ?>
-				<?php endif; ?>
-			</tbody>
-		</table>
+		<p>
+			Le esclusioni sono salvate a livello Network e non vengono copiate clonando un sito.
+			I nuovi siti pubblici sono inclusi automaticamente; deselezionali qui quando non devono comparire nell'indice.
+		</p>
+		<form method="post" style="margin: 1em 0 2em;">
+			<?php wp_nonce_field( 'desiitse_cache_action' ); ?>
+			<input type="hidden" name="desiitse_action" value="save_network_sites">
+			<table class="widefat striped">
+				<thead>
+					<tr>
+						<th style="width: 7em;">Pubblica</th>
+						<th>Sito</th>
+						<th>Tipologia</th>
+						<th>Home</th>
+						<th>Endpoint grafo</th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if ( empty( $candidate_rows ) ) : ?>
+						<tr><td colspan="5">Nessun sito pubblico trovato nel network.</td></tr>
+					<?php else : ?>
+						<?php foreach ( $candidate_rows as $row ) : ?>
+							<tr>
+								<td>
+									<input type="checkbox" name="desiitse_network_site_ids[]" value="<?php echo esc_attr( (string) $row['blog_id'] ); ?>" <?php checked( ! in_array( $row['blog_id'], $excluded_ids, true ) ); ?>>
+								</td>
+								<td><?php echo esc_html( $row['name'] ); ?> <code>#<?php echo esc_html( (string) $row['blog_id'] ); ?></code></td>
+								<td><?php echo esc_html( $row['tipologiaName'] ?: $row['tipologia'] ); ?></td>
+								<td><a href="<?php echo esc_url( $row['home_url'] ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $row['home_url'] ); ?></a></td>
+								<td><a href="<?php echo esc_url( $row['rest_url'] ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $row['rest_url'] ); ?></a></td>
+							</tr>
+						<?php endforeach; ?>
+					<?php endif; ?>
+				</tbody>
+			</table>
+			<p><button type="submit" class="button button-primary">Salva siti pubblicati</button></p>
+		</form>
 
 		<?php desiitse_admin_rate_limit_section(); ?>
 	</div>

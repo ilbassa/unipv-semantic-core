@@ -150,3 +150,35 @@ add_action( 'updated_post_meta', function ( $meta_id, int $post_id ) {
 add_action( 'deleted_post_meta', function ( $meta_id, int $post_id ) {
 	desiitse_invalidate_for_post( $post_id );
 }, 10, 2 );
+
+add_action( 'updated_post_meta', function ( $meta_id, int $post_id, string $meta_key ) {
+	if ( $meta_key === desiitse_intranet_protected_meta_key() ) {
+		desiitse_invalidate_all();
+		desiitse_schedule_rebuild_all();
+	}
+}, 20, 3 );
+add_action( 'added_post_meta', function ( $meta_id, int $post_id, string $meta_key ) {
+	if ( $meta_key === desiitse_intranet_protected_meta_key() ) {
+		desiitse_invalidate_all();
+		desiitse_schedule_rebuild_all();
+	}
+}, 20, 3 );
+add_action( 'deleted_post_meta', function ( $meta_ids, int $post_id, string $meta_key ) {
+	if ( $meta_key === desiitse_intranet_protected_meta_key() ) {
+		desiitse_invalidate_all();
+		desiitse_schedule_rebuild_all();
+	}
+}, 20, 3 );
+
+add_action( 'activated_plugin', function ( string $plugin ) {
+	if ( $plugin === desiitse_intranet_unipv_plugin_file() ) {
+		desiitse_invalidate_all();
+		desiitse_schedule_rebuild_all();
+	}
+} );
+add_action( 'deactivated_plugin', function ( string $plugin ) {
+	if ( $plugin === desiitse_intranet_unipv_plugin_file() ) {
+		desiitse_invalidate_all();
+		desiitse_schedule_rebuild_all();
+	}
+} );

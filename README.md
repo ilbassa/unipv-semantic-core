@@ -16,7 +16,7 @@ In installazioni multisite espone inoltre l'indice network:
 
 - `/wp-json/unipv/v1/network/graphs`
 
-L'endpoint restituisce l'elenco dei siti pubblici del network con tipologia del sito e rispettivo `/wp-json/unipv/v1/graph`.
+L'endpoint restituisce l'elenco dei siti pubblici non esclusi dal Network Admin, con tipologia del sito e rispettivo `/wp-json/unipv/v1/graph`. Le esclusioni sono salvate a livello Network e non vengono clonate con le opzioni di un sottosito; i nuovi siti pubblici sono inclusi automaticamente. L'indice è memorizzato in una cache Network con TTL `DESIITSE_CACHE_TTL`.
 
 Restano riusati dal plugin originale: cache a transient + option, invalidazione su salvataggio contenuti, rebuild asincrono via WP-Cron, rate limiting e toggle di disponibilita API.
 

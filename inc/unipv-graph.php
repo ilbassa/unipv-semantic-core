@@ -8,6 +8,9 @@
 defined( 'ABSPATH' ) || exit;
 
 const DESIITSE_UNIPV_REST_NAMESPACE = 'unipv/v1';
+const DESIITSE_UNIPV_NETWORK_SITES_OPTION = 'desiitse_unipv_network_published_site_ids';
+const DESIITSE_UNIPV_NETWORK_EXCLUDED_SITES_OPTION = 'desiitse_unipv_network_excluded_site_ids';
+const DESIITSE_UNIPV_NETWORK_CACHE_KEY = 'desiitse_unipv_network_graph_index';
 
 add_action( 'rest_api_init', function () {
 	$routes = [
@@ -42,14 +45,111 @@ add_action( 'rest_api_init', function () {
 } );
 
 function desiitse_unipv_network_graph_index(): array {
-	return [
+	// Esegue l'eventuale migrazione dalla precedente allowlist prima di leggere la cache.
+	desiitse_unipv_network_excluded_site_ids();
+
+	$cached = get_site_transient( DESIITSE_UNIPV_NETWORK_CACHE_KEY );
+	if ( is_array( $cached ) && isset( $cached['graphs'] ) && is_array( $cached['graphs'] ) ) {
+		return $cached;
+	}
+
+	$index = [
 		'@context' => [
 			'dct' => 'http://purl.org/dc/terms/',
 			'sm'  => 'https://w3id.org/italia/onto/SM/',
 		],
 		'graphs'   => desiitse_unipv_network_graph_rows(),
 	];
+
+	set_site_transient( DESIITSE_UNIPV_NETWORK_CACHE_KEY, $index, DESIITSE_CACHE_TTL );
+
+	return $index;
 }
+
+function desiitse_unipv_invalidate_network_graph_index(): void {
+	if ( is_multisite() ) {
+		delete_site_transient( DESIITSE_UNIPV_NETWORK_CACHE_KEY );
+	}
+}
+
+/**
+ * Normalizza un elenco di blog ID.
+ *
+ * @return int[]
+ */
+function desiitse_unipv_normalize_site_ids( $value ): array {
+	$ids = array_values( array_unique( array_filter( array_map( 'absint', (array) $value ) ) ) );
+	sort( $ids, SORT_NUMERIC );
+
+	return $ids;
+}
+
+/**
+ * Siti che possono essere pubblicati nell'indice del network corrente.
+ *
+ * @return WP_Site[]
+ */
+function desiitse_unipv_network_candidate_sites(): array {
+	if ( ! is_multisite() ) {
+		return [];
+	}
+
+	return get_sites( [
+		'number'     => 0,
+		'network_id' => get_current_network_id(),
+		'public'     => 1,
+		'archived'   => 0,
+		'mature'     => 0,
+		'deleted'    => 0,
+		'spam'       => 0,
+	] );
+}
+
+/**
+ * IDs dei siti esclusi dall'indice di network.
+ *
+ * Senza esclusioni configurate, tutti i siti pubblici sono inclusi. La
+ * precedente allowlist viene convertita una sola volta per conservare le
+ * esclusioni già scelte.
+ *
+ * @return int[]
+ */
+function desiitse_unipv_network_excluded_site_ids(): array {
+	if ( ! is_multisite() ) {
+		return [];
+	}
+
+	$value = get_site_option( DESIITSE_UNIPV_NETWORK_EXCLUDED_SITES_OPTION, null );
+	if ( $value !== null ) {
+		return desiitse_unipv_normalize_site_ids( $value );
+	}
+
+	$legacy_published = get_site_option( DESIITSE_UNIPV_NETWORK_SITES_OPTION, null );
+	if ( $legacy_published === null ) {
+		return [];
+	}
+
+	$candidate_ids = array_map(
+		fn( WP_Site $site ) => (int) $site->blog_id,
+		desiitse_unipv_network_candidate_sites()
+	);
+	$excluded_ids = desiitse_unipv_normalize_site_ids(
+		array_diff( $candidate_ids, desiitse_unipv_normalize_site_ids( $legacy_published ) )
+	);
+
+	update_site_option( DESIITSE_UNIPV_NETWORK_EXCLUDED_SITES_OPTION, $excluded_ids );
+	delete_site_option( DESIITSE_UNIPV_NETWORK_SITES_OPTION );
+	desiitse_unipv_invalidate_network_graph_index();
+
+	return $excluded_ids;
+}
+
+function desiitse_unipv_network_site_is_published( int $blog_id ): bool {
+	return ! in_array( $blog_id, desiitse_unipv_network_excluded_site_ids(), true );
+}
+
+// Completa l'eventuale migrazione prima che nello stesso request venga creato un nuovo sito.
+add_action( 'init', 'desiitse_unipv_network_excluded_site_ids', 1 );
 
 function desiitse_unipv_site_type_options(): array {
 	return [
@@ -70,46 +170,73 @@ function desiitse_unipv_network_graph_rows(): array {
 		return [];
 	}
 
-	$sites = get_sites( [
-		'number'   => 0,
-		'public'   => 1,
-		'archived' => 0,
-		'deleted'  => 0,
-		'spam'     => 0,
-	] );
-
 	$rows = [];
-	foreach ( $sites as $site ) {
+	foreach ( desiitse_unipv_network_candidate_sites() as $site ) {
+		if ( ! desiitse_unipv_network_site_is_published( (int) $site->blog_id ) ) {
+			continue;
+		}
+
 		switch_to_blog( (int) $site->blog_id );
-		$type = desiitse_unipv_site_option( 'tipologia_sito' );
+		try {
+			$type = desiitse_unipv_site_option( 'tipologia_sito' );
 
-		$rows[] = [
-			'name'          => desiitse_clean_text( get_bloginfo( 'name' ) ),
-			'tipologia'     => $type,
-			'tipologiaName' => $type !== '' ? desiitse_unipv_site_type_label( $type ) : '',
-			'home_url'      => home_url( '/' ),
-			'rest_url'      => rest_url( DESIITSE_UNIPV_REST_NAMESPACE . '/graph' ),
-		];
-
-		restore_current_blog();
+			$rows[] = [
+				'name'          => desiitse_clean_text( get_bloginfo( 'name' ) ),
+				'tipologia'     => $type,
+				'tipologiaName' => $type !== '' ? desiitse_unipv_site_type_label( $type ) : '',
+				'home_url'      => home_url( '/' ),
+				'rest_url'      => rest_url( DESIITSE_UNIPV_REST_NAMESPACE . '/graph' ),
+			];
+		} finally {
+			restore_current_blog();
+		}
 	}
 
 	return $rows;
 }
+
+function desiitse_unipv_maybe_invalidate_network_graph_index( string $option ): void {
+	$watched = array_merge(
+		[ 'blogname', 'home', 'siteurl' ],
+		desiitse_unipv_option_containers(),
+		array_map(
+			fn( $prefix ) => $prefix . 'tipologia_sito',
+			desiitse_unipv_option_prefixes()
+		)
+	);
+
+	if ( in_array( $option, $watched, true ) || str_starts_with( $option, 'theme_mods_' ) ) {
+		desiitse_unipv_invalidate_network_graph_index();
+	}
+}
+
+add_action( 'added_option', 'desiitse_unipv_maybe_invalidate_network_graph_index', 10, 1 );
+add_action( 'updated_option', 'desiitse_unipv_maybe_invalidate_network_graph_index', 10, 1 );
+add_action( 'deleted_option', 'desiitse_unipv_maybe_invalidate_network_graph_index', 10, 1 );
+add_action( 'wp_initialize_site', 'desiitse_unipv_invalidate_network_graph_index', 10, 0 );
+add_action( 'wp_update_site', 'desiitse_unipv_invalidate_network_graph_index', 10, 0 );
+add_action( 'wp_delete_site', 'desiitse_unipv_invalidate_network_graph_index', 10, 0 );
 
 function desiitse_unipv_posts( string $post_type ): array {
 	if ( ! post_type_exists( $post_type ) ) {
 		return [];
 	}
 
-	return get_posts( [
+	$args = [
 		'post_type'      => $post_type,
 		'posts_per_page' => -1,
 		'post_status'    => 'publish',
 		'no_found_rows'  => true,
 		'orderby'        => 'title',
 		'order'          => 'ASC',
-	] );
+	];
+
+	$meta_query = desiitse_intranet_public_meta_query();
+	if ( ! empty( $meta_query ) ) {
+		$args['meta_query'] = $meta_query;
+	}
+
+	return get_posts( $args );
 }
 
 function desiitse_unipv_meta( int $post_id, string $key ): string {
@@ -460,7 +587,8 @@ function desiitse_unipv_refs( int $post_id, string $meta_key ): array {
 }
 
 function desiitse_unipv_ref_list( array $ids ): array {
-	return array_values( array_map( fn( $id ) => [ '@id' => desiitse_node_id( (int) $id ) ], $ids ) );
+	$ids = array_filter( array_map( 'intval', $ids ), 'desiitse_is_publicly_reachable_post' );
+	return array_values( array_map( fn( $id ) => [ '@id' => desiitse_node_id( $id ) ], $ids ) );
 }
 
 function desiitse_build_unipv_nodes(): array {
@@ -690,7 +818,7 @@ function desiitse_build_unipv_indirizzo_nodes(): array {
 
 		$leader_ids = desiitse_unipv_refs( $post->ID, 'responsabile_attivita_di_ricerca' );
 		if ( ! empty( $leader_ids ) ) {
-			$node['dct:contributor'] = desiitse_unipv_ref_list( $leader_ids );
+			desiitse_add_ref_property( $node, 'dct:contributor', desiitse_unipv_ref_list( $leader_ids ) );
 			$nodes = array_merge( $nodes, desiitse_minimal_related_nodes( $leader_ids ) );
 		}
 
@@ -734,9 +862,9 @@ function desiitse_build_unipv_pubblicazione_nodes(): array {
 		$internal_authors = desiitse_unipv_refs( $post->ID, 'autori-interni' );
 		if ( ! empty( $internal_authors ) ) {
 			$author_refs = desiitse_unipv_ref_list( $internal_authors );
-			if ( isset( $node['dct:creator'] ) ) {
+			if ( ! empty( $author_refs ) && isset( $node['dct:creator'] ) ) {
 				$node['dct:creator'] = array_merge( [ $node['dct:creator'] ], $author_refs );
-			} else {
+			} elseif ( ! empty( $author_refs ) ) {
 				$node['dct:creator'] = $author_refs;
 			}
 			$nodes = array_merge( $nodes, desiitse_minimal_related_nodes( $internal_authors ) );

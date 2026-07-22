@@ -37,6 +37,7 @@ if ( ! defined( 'DESIITSE_CACHE_TTL' ) ) {
 require_once DESIITSE_PLUGIN_DIR . 'inc/availability.php';
 require_once DESIITSE_PLUGIN_DIR . 'inc/rate-limit.php';
 require_once DESIITSE_PLUGIN_DIR . 'inc/ipa-lookup.php';
+require_once DESIITSE_PLUGIN_DIR . 'inc/intranet-compat.php';
 require_once DESIITSE_PLUGIN_DIR . 'inc/graph-helpers.php';
 require_once DESIITSE_PLUGIN_DIR . 'inc/unipv-graph.php';
 require_once DESIITSE_PLUGIN_DIR . 'inc/cache.php';

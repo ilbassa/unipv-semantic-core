@@ -358,6 +358,9 @@ function desiitse_minimal_related_node( int $post_id ): ?array {
 	if ( ! $post instanceof WP_Post ) {
 		return null;
 	}
+	if ( ! desiitse_is_publicly_reachable_post( $post ) ) {
+		return null;
+	}
 
 	$title = desiitse_clean_text( get_the_title( $post ) );
 
